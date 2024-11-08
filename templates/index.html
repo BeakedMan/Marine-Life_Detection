@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Image Prediction</title>
+</head>
+<body>
+    <h1>Upload an Image for Prediction</h1>
+
+    <form id="uploadForm" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadImage();">
+        <label for="file">Choose an image:</label>
+        <input type="file" id="file" name="file" accept="image/*" onchange="previewImage(event)">
+        <br>
+        <label for="model">Select Model:</label>
+        <select id="model" name="model">
+            <option value="yolo">YOLOv11</option>
+            <option value="cnn">CNN</option>
+            <option value="faster_rcnn">Faster R-CNN</option>
+        </select>
+        <br><br>
+        <button type="submit">Submit</button>
+    </form>
+
+    <h2>Image Preview</h2>
+    <img id="preview" src="#" alt="Image preview" style="max-width: 300px; display: none;">
+
+    <h2>Prediction Result</h2>
+    <img id="result" src="#" style="max-width: 300px;" alt="Prediction"></img>
+
+    <script>
+        // Function to preview the selected image
+        function previewImage(event) {
+            const reader = new FileReader();
+            reader.onload = function() {
+                const preview = document.getElementById('preview');
+                preview.src = reader.result;
+                preview.style.display = 'block';
+            };
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        // Function to upload the image and display predictions
+        function uploadImage() {
+            const formData = new FormData(document.getElementById('uploadForm'));
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Display the prediction result as JSON (optional)
+                // const resultDiv = document.getElementById('result');
+                // resultDiv.innerHTML = `<pre>${JSON.stringify(data.result, null, 2)}</pre>`;
+
+                // Update the preview image to show the annotated image
+                const preview = document.getElementById('result');
+                if (data.image_url) {
+                    preview.src = `${data.image_url}?t=${new Date().getTime()}`;  // Add timestamp to prevent caching
+                } else {
+                    console.error("Image URL not received from the server");
+                    resultDiv.innerHTML += "<p style='color: red;'>Error: Could not load annotated image.</p>";
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = "<p style='color: red;'>An error occurred while processing the image.</p>";
+            });
+        }
+    </script>
+    
+</body>
+</html>
