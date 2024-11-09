@@ -26,6 +26,20 @@ class_names_all = {
 
 # For CNN and YOLO (no background class)
 class_names_no_background = {
+    0: "Fish",
+    1: "ball",
+    2: "circle cage",
+    3: "cube",
+    4: "cylinder",
+    5: "human body",
+    6: "metal bucket",
+    7: "plane",
+    8: "rov",
+    9: "square cage",
+    10: "tyre",
+}
+
+class_names_no_background_yolo = {
     1: "Fish",
     2: "ball",
     3: "circle cage",
@@ -121,7 +135,7 @@ def predict():
     # Run the prediction based on the selected model
     if model_choice == 'yolo':
         result = yolov11_predict(yolo_model, filepath)
-        annotated_image_path = draw_bounding_boxes(filepath, result, class_names_no_background)
+        annotated_image_path = draw_bounding_boxes(filepath, result, class_names_no_background_yolo)
         annotated_image_url = url_for('static', filename=f'uploads/annotated/{filename}')
         response = {'result': result, 'image_url': annotated_image_url}
 
@@ -148,7 +162,7 @@ def predict():
     return jsonify(response)
 
 # YOLOv11 Prediction Function
-def yolov11_predict(model, image_path, conf_threshold=0.5, iou_threshold=0.4):
+def yolov11_predict(model, image_path, conf_threshold=0.3, iou_threshold=0.4):
     results = model.predict(image_path, conf=conf_threshold, iou=iou_threshold)
     predictions = results[0]
     boxes = predictions.boxes.xyxy.cpu().numpy()  # Bounding boxes
@@ -167,38 +181,23 @@ def yolov11_predict(model, image_path, conf_threshold=0.5, iou_threshold=0.4):
 
 # CNN Prediction (for classification)
 def cnn_predict(model, image):
-    model.eval()
+    model.eval()  # Ensure the model is in evaluation mode
     with torch.no_grad():
-        # Debug: Check the initial shape of `image`
-        print(f"Initial image shape: {image.shape}")
+        # Forward pass through the model
+        outputs = model(image)  # Outputs shape should be [batch_size, num_classes]
         
-        # Ensure the image tensor has a batch dimension of 1
-        if image.dim() == 3:  
-            image = image.unsqueeze(0)
-        elif image.size(0) != 1:
-            raise ValueError("Expected a single image, but got a batch of images.")
-        
-        # Debug: Confirm the shape after adjustment
-        print(f"Image shape after ensuring batch dimension: {image.shape}")
-        
-        outputs = model(image)  # Expected output shape should be [1, num_classes]
-        
-        # Debug: Print the shape of outputs to confirm
-        print(f"Output shape from the model: {outputs.shape}")
-        
-        # Apply softmax to get probabilities
+        # Apply softmax to get class probabilities
         probabilities = torch.nn.functional.softmax(outputs, dim=1)
         
-        # Get the predicted class and confidence score
-        _, predicted = torch.max(probabilities, 1)
+        # Get the predicted class and its confidence
+        confidence, predicted = torch.max(probabilities, 1)
+
+        print(confidence, predicted)
         
-        # Use the predicted class index to fetch the corresponding probability
-        confidence = probabilities[0, predicted.item()].item()
+        # Convert class index to human-readable label (assuming `class_names_no_background` dictionary)
         class_name = class_names_no_background.get(predicted.item(), f"Class {predicted.item()}")
         
-    print(class_name, confidence)
-    return {'class': class_name, 'confidence': confidence}
-
+        return {'class': class_name, 'confidence': confidence.item()}
 
 # Faster R-CNN Prediction (for object detection)
 def faster_rcnn_predict(model, image):
