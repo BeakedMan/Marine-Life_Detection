@@ -25,7 +25,8 @@
     <img id="preview" src="#" alt="Image preview" style="max-width: 300px; display: none;">
 
     <h2>Prediction Result</h2>
-    <img id="result" src="#" style="max-width: 300px;" alt="Prediction"></img>
+    <div id="resultdiv"></div>
+    <img id="result" src="#" alt="Annotated Image" style="max-width: 300px; display:none;">
 
     <script>
         // Function to preview the selected image
@@ -48,17 +49,25 @@
             })
             .then(response => response.json())
             .then(data => {
-                // Display the prediction result as JSON (optional)
-                // const resultDiv = document.getElementById('result');
-                // resultDiv.innerHTML = `<pre>${JSON.stringify(data.result, null, 2)}</pre>`;
+                const resultDiv = document.getElementById('resultdiv');
+                const preview = document.getElementById('preview');
 
-                // Update the preview image to show the annotated image
-                const preview = document.getElementById('result');
-                if (data.image_url) {
-                    preview.src = `${data.image_url}?t=${new Date().getTime()}`;  // Add timestamp to prevent caching
+                // Check if an image URL is provided (for YOLO and Faster R-CNN) or just a result (for CNN)
+                if (data.result && data.result.class !== undefined && data.result.confidence !== undefined) {
+                    // Display only class and confidence for CNN
+                    // preview.style.display = 'none';  // Hide preview for CNN
+                    console.log("In 1st")
+                    resultDiv.innerHTML = `<p>Class: ${data.result.class}</p><p>Confidence: ${data.result.confidence.toFixed(2)}</p>`;
+                }
+                else if (data.image_url) {
+                    // Display annotated image for YOLO and Faster R-CNN
+                    console.log("In 2nd")
+                    result.src = `${data.image_url}?t=${new Date().getTime()}`;  // Add timestamp to prevent caching
+                    result.style.display = 'block';
+                    // resultDiv.innerHTML = `<pre>${JSON.stringify(data.result, null, 2)}</pre>`;
                 } else {
-                    console.error("Image URL not received from the server");
-                    resultDiv.innerHTML += "<p style='color: red;'>Error: Could not load annotated image.</p>";
+                    console.error("Unexpected response format:", data);
+                    resultDiv.innerHTML = "<p style='color: red;'>Error: Unexpected response format.</p>";
                 }
             })
             .catch(error => {
