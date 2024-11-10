@@ -25,7 +25,7 @@
     <img id="preview" src="#" alt="Image preview" style="max-width: 300px; display: none;">
 
     <h2>Prediction Result</h2>
-    <div id="resultdiv"></div>
+    <div id="resultdiv" style="display: none;"></div>
     <img id="result" src="#" alt="Annotated Image" style="max-width: 300px; display:none;">
 
     <script>
@@ -56,13 +56,12 @@
                 if (data.result && data.result.class !== undefined && data.result.confidence !== undefined) {
                     // Display only class and confidence for CNN
                     // preview.style.display = 'none';  // Hide preview for CNN
-                    console.log("In 1st")
-                    result.style.display = "none";
+                    document.getElementById('result').style.display = "none";
                     resultDiv.innerHTML = `<p>Class: ${data.result.class}</p><p>Confidence: ${data.result.confidence.toFixed(2)}</p>`;
+                    resultDiv.style.display = "block";
                 }
                 else if (data.image_url) {
                     // Display annotated image for YOLO and Faster R-CNN
-                    console.log("In 2nd")
                     resultDiv.style.display = "none";
                     result.src = `${data.image_url}?t=${new Date().getTime()}`;  // Add timestamp to prevent caching
                     result.style.display = 'block';
