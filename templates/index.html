@@ -57,11 +57,13 @@
                     // Display only class and confidence for CNN
                     // preview.style.display = 'none';  // Hide preview for CNN
                     console.log("In 1st")
+                    result.style.display = "none";
                     resultDiv.innerHTML = `<p>Class: ${data.result.class}</p><p>Confidence: ${data.result.confidence.toFixed(2)}</p>`;
                 }
                 else if (data.image_url) {
                     // Display annotated image for YOLO and Faster R-CNN
                     console.log("In 2nd")
+                    resultDiv.style.display = "none";
                     result.src = `${data.image_url}?t=${new Date().getTime()}`;  // Add timestamp to prevent caching
                     result.style.display = 'block';
                     // resultDiv.innerHTML = `<pre>${JSON.stringify(data.result, null, 2)}</pre>`;
