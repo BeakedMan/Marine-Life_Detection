@@ -109,6 +109,7 @@ transform = transforms.Compose([
 cnn_transform = transforms.Compose([
         transforms.Resize((128, 128)),  # Resize only for CNN
         transforms.ToTensor(),
+        transforms.Normalize([0.5], [0.5])
     ])
 
 @app.route('/')
