@@ -1,14 +1,12 @@
 import os
-import json
 from flask import Flask, render_template, request, jsonify, url_for
 from PIL import Image, ImageDraw, ImageFont
 import torch
 import torch.nn as nn
-from torchvision import transforms
-from torchvision.models.detection import fasterrcnn_resnet50_fpn
+from torchvision import transforms, models
 from ultralytics import YOLO
 
-# For Faster R-CNN
+# Class names for various models
 class_names_all = {
     0: "background",
     1: "Fish",
@@ -24,7 +22,6 @@ class_names_all = {
     11: "tyre",
 }
 
-# For CNN (no background class)
 class_names_no_background = {
     0: "Fish",
     1: "ball",
@@ -51,6 +48,19 @@ class_names_no_background_yolo = {
     9: "rov",
     10: "square cage",
     11: "tyre",
+}
+
+# For Ensemble Model (9 classes)
+class_names_ensemble_9 = {
+    0: "Ball",
+    1: "Circle Cage",
+    2: "Cube",
+    3: "Cylinder",
+    4: "Fish",
+    5: "Human Body",
+    6: "Metal Bucket",
+    7: "Square Cage",
+    8: "Tyre",
 }
 
 # Set up device: MPS for Apple Silicon (M1), or fallback to CPU
@@ -83,57 +93,78 @@ class SimpleCNN(nn.Module):
         x = self.fc2(x)
         return x
 
-# Load models
-yolo_model = YOLO('models/best.pt')  # Load YOLOv11 model
-num_classes = 11  # Set to the number of classes in your CNN model
-cnn_model = SimpleCNN(num_classes=num_classes)
+# Define the EnsembleModel class
+class EnsembleModel(nn.Module):
+    def __init__(self, num_classes):
+        super(EnsembleModel, self).__init__()
+        # Initialize ResNet50 and modify the final layer
+        self.modelA = models.resnet50(pretrained=False)
+        self.modelA.fc = nn.Linear(self.modelA.fc.in_features, num_classes)
+        
+        # Initialize VGG16 and modify the final layer
+        self.modelB = models.vgg16(pretrained=False)
+        self.modelB.classifier[6] = nn.Linear(self.modelB.classifier[6].in_features, num_classes)
+
+    def forward(self, x):
+        x1 = self.modelA(x)
+        x2 = self.modelB(x)
+        return (x1 + x2) / 2  # Average the predictions
+
+# Load YOLO model
+yolo_model = YOLO('models/best.pt')
+
+# Initialize and load the ensemble model
+num_classes = len(class_names_ensemble_9)
+ensemble_model = EnsembleModel(num_classes=num_classes)
+ensemble_model.load_state_dict(torch.load('models/ensemble_model.pth', map_location=device))
+ensemble_model.to(device)
+
+# Load the custom CNN model
+cnn_model = SimpleCNN(num_classes=11)
 cnn_model.load_state_dict(torch.load('models/cnn_model.pth', map_location=device))
 cnn_model.to(device)
 
-# Set the number of classes for Faster R-CNN to match the saved model
-faster_rcnn_classes = 12
-
-# Load Faster R-CNN and update the classifier head for the correct number of classes
-faster_rcnn_model = fasterrcnn_resnet50_fpn(pretrained=False)
+# Load Faster R-CNN model and adjust the classifier head
+faster_rcnn_model = models.detection.fasterrcnn_resnet50_fpn(pretrained=False)
 in_features = faster_rcnn_model.roi_heads.box_predictor.cls_score.in_features
-faster_rcnn_model.roi_heads.box_predictor.cls_score = nn.Linear(in_features, faster_rcnn_classes)
-faster_rcnn_model.roi_heads.box_predictor.bbox_pred = nn.Linear(in_features, faster_rcnn_classes * 4)
+faster_rcnn_model.roi_heads.box_predictor.cls_score = nn.Linear(in_features, len(class_names_all))
+faster_rcnn_model.roi_heads.box_predictor.bbox_pred = nn.Linear(in_features, len(class_names_all) * 4)
 faster_rcnn_model.load_state_dict(torch.load('models/faster_rcnn_model.pth', map_location=device))
 faster_rcnn_model.to(device)
 
 # Define transformations for input images
 transform = transforms.Compose([
-    transforms.ToTensor(),  # No resizing for Faster R-CNN and YOLO
+    transforms.ToTensor(),
+])
+
+transform_ensemble = transforms.Compose([
+    transforms.Resize((224,224)),
+    transforms.ToTensor(),
 ])
 
 cnn_transform = transforms.Compose([
-        transforms.Resize((128, 128)),  # Resize only for CNN
-        transforms.ToTensor(),
-        transforms.Normalize([0.5], [0.5])
-    ])
+    transforms.Resize((128, 128)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.5], [0.5])
+])
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# Route to handle image upload and prediction
 @app.route('/predict', methods=['POST'])
 def predict():
-    model_choice = request.form.get('model')  # Get the selected model from form data
+    model_choice = request.form.get('model')
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
 
     file = request.files['file']
     filename = file.filename
-    upload_folder = app.config['UPLOAD_FOLDER']
-    filepath = os.path.join(upload_folder, filename)
-    
-    os.makedirs(upload_folder, exist_ok=True)
-    os.makedirs(os.path.join(upload_folder, 'annotated'), exist_ok=True)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'annotated'), exist_ok=True)
+    file.save(filepath)
 
-    file.save(filepath)  # Save the uploaded file
-
-    # Run the prediction based on the selected model
     if model_choice == 'yolo':
         result = yolov11_predict(yolo_model, filepath)
         annotated_image_path = draw_bounding_boxes(filepath, result, class_names_no_background_yolo)
@@ -152,62 +183,59 @@ def predict():
         image = Image.open(filepath)
         image_tensor = cnn_transform(image).unsqueeze(0).to(device)
         result = cnn_predict(cnn_model, image_tensor)
-        # Only return class and confidence for CNN
         response = {'result': result}
-        
+
+    elif model_choice == 'ensemble':
+        image = Image.open(filepath)
+        image_tensor = transform_ensemble(image).unsqueeze(0).to(device)
+        result = ensemble_predict(ensemble_model, image_tensor)
+        response = {'result': result}
+
     else:
         return jsonify({'error': 'Invalid model selected'}), 400
 
-    print(f"Original image path: {filepath}")
-
     return jsonify(response)
 
-# YOLOv11 Prediction Function
 def yolov11_predict(model, image_path, conf_threshold=0.3, iou_threshold=0.4):
     results = model.predict(image_path, conf=conf_threshold, iou=iou_threshold)
     predictions = results[0]
-    boxes = predictions.boxes.xyxy.cpu().numpy()  # Bounding boxes
-    scores = predictions.boxes.conf.cpu().numpy()  # Confidence scores
-    labels = predictions.boxes.cls.cpu().numpy()  # Class labels
+    boxes = predictions.boxes.xyxy.cpu().numpy()
+    scores = predictions.boxes.conf.cpu().numpy()
+    labels = predictions.boxes.cls.cpu().numpy()
 
     formatted_results = []
     for box, score, label in zip(boxes, scores, labels):
         formatted_results.append({
             'box': box.tolist(),
-            'label': int(label + 1),  # Adjust for YOLO's class numbering
+            'label': int(label + 1),
             'score': float(score)
         })
-
     return formatted_results
 
-# CNN Prediction (for classification)
 def cnn_predict(model, image):
-    model.eval()  # Ensure the model is in evaluation mode
+    model.eval()
     with torch.no_grad():
-        # Forward pass through the model
-        outputs = model(image)  # Outputs shape should be [batch_size, num_classes]
-        
-        # Apply softmax to get class probabilities
+        outputs = model(image)
         probabilities = torch.nn.functional.softmax(outputs, dim=1)
-        
-        # Get the predicted class and its confidence
         confidence, predicted = torch.max(probabilities, 1)
-
-        print(confidence, predicted)
-        
-        # Convert class index to human-readable label (assuming `class_names_no_background` dictionary)
         class_name = class_names_no_background.get(predicted.item(), f"Class {predicted.item()}")
-        
         return {'class': class_name, 'confidence': confidence.item()}
 
-# Faster R-CNN Prediction (for object detection)
 def faster_rcnn_predict(model, image):
     model.eval()
     with torch.no_grad():
         predictions = model(image)
     return format_predictions(predictions)
 
-# Helper to format predictions for object detection
+def ensemble_predict(model, image):
+    model.eval()
+    with torch.no_grad():
+        outputs = model(image)
+        probabilities = torch.nn.functional.softmax(outputs, dim=1)
+        confidence, predicted = torch.max(probabilities, 1)
+        class_name = class_names_ensemble_9.get(predicted.item(), f"Class {predicted.item()}")
+        return {'class': class_name, 'confidence': confidence.item()}
+
 def format_predictions(predictions):
     results = []
     for box, label, score in zip(predictions[0]['boxes'], predictions[0]['labels'], predictions[0]['scores']):
@@ -217,8 +245,6 @@ def format_predictions(predictions):
             'score': score.item()
         })
     return results
-
-from PIL import Image, ImageDraw, ImageFont
 
 def draw_bounding_boxes(image_path, predictions, class_names):
     image = Image.open(image_path).convert("RGB")
@@ -244,7 +270,6 @@ def draw_bounding_boxes(image_path, predictions, class_names):
             draw.text((x_min, y_min - text_size[1]), text, fill="white", font=font)
 
     annotated_image_path = image_path.replace("uploads", "uploads/annotated")
-    os.makedirs(os.path.dirname(annotated_image_path), exist_ok=True)
     image.save(annotated_image_path)
     
     return annotated_image_path

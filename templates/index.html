@@ -18,6 +18,7 @@
                 <option value="yolo">YOLOv11</option>
                 <option value="cnn">CNN</option>
                 <option value="faster_rcnn">Faster R-CNN</option>
+                <option value="ensemble">Ensemble Model</option>
             </select>
             <br><br>
             <button type="submit">Submit</button>
@@ -76,7 +77,20 @@
             10: "square cage",
             11: "tyre"
         };
-    
+
+        // New class mapping for the Ensemble Model (9 classes)
+        const classNamesEnsemble9 = {
+            0: "Ball",
+            1: "Circle Cage",
+            2: "Cube",
+            3: "Cylinder",
+            4: "Fish",
+            5: "Human Body",
+            6: "Metal Bucket",
+            7: "Square Cage",
+            8: "Tyre"
+        };
+
         // Function to select the appropriate class name mapping based on model choice
         function getClassName(label, modelChoice) {
             if (modelChoice === 'yolo') {
@@ -85,20 +99,22 @@
                 return classNamesAll[label] || `Class ${label}`;
             } else if (modelChoice === 'cnn') {
                 return classNamesNoBackground[label] || `Class ${label}`;
+            } else if (modelChoice === 'ensemble') {
+                return classNamesEnsemble9[label] || `Class ${label}`;
             }
             return `Class ${label}`;
         }
         
         function previewImage(event) {
-        const file = event.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function() {
-                const preview = document.getElementById('preview');
-                preview.src = reader.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function() {
+                    const preview = document.getElementById('preview');
+                    preview.src = reader.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
             }
         }
 
