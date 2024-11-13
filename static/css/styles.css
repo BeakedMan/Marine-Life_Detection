@@ -1,15 +1,20 @@
+/* General page styling */
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f6f9;
-    text-align: center;
+    background-color: #f8f3e9;  /* Soft pastel background */
     margin: 0;
     padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: #333;
 }
 
+/* Container for centering content and adding padding */
 .container {
     width: 90%;
-    max-width: 600px;
-    margin: 0 auto;
+    max-width: 700px;
     padding: 20px;
     background-color: #ffffff;
     border-radius: 10px;
@@ -17,14 +22,23 @@ body {
     text-align: center;
 }
 
-h1, h2 {
-    color: #333;
+/* Header styles */
+h1 {
+    color: #4a4a4a;
     font-weight: bold;
+    margin-top: 0;
 }
 
-label {
+h2 {
+    color: #4a4a4a;
+    font-weight: bold;
+    padding-top: 20px; /* Add top padding to Image Preview heading */
+}
+
+/* Form input styles */
+form label {
     font-size: 1rem;
-    color: #333;
+    color: #4a4a4a;
 }
 
 input[type="file"],
@@ -34,38 +48,54 @@ button {
     font-size: 1rem;
     padding: 10px;
     border-radius: 5px;
-    border: 1px solid #ccc;
+    border: 1px solid #ddd;
+    background-color: #f0e9ff;  /* Light lavender background */
 }
 
+/* Button styling */
 button {
-    background-color: #007bff;
+    background-color: #8ac6d1;  /* Soft pastel teal */
     color: #ffffff;
     cursor: pointer;
     border: none;
+    transition: background-color 0.3s;
 }
 
 button:hover {
-    background-color: #0056b3;
+    background-color: #5da5b3;  /* Darker pastel teal */
 }
 
+/* Image preview styling */
 .image-preview {
-    max-width: 400px;
+    max-width: 90%;
     margin: 20px auto;
-    display: block;
     border-radius: 8px;
     box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* Prediction result container styling */
+#resultdiv {
+    margin: 0; /* Remove any margin */
+    padding: 0; /* Remove any padding */
+    background-color: transparent; /* Ensure background is fully transparent */
+    font-size: 1rem;
+    color: #4a4a4a;
+}
+
+/* List of predicted classes styling */
 .predicted-classes {
     list-style: none;
     padding: 0;
-    color: #333;
+    margin-top: 10px;
+    color: #4a4a4a;
+    text-align: left;
 }
 
 .predicted-classes li {
-    background-color: #007bff;
-    color: white;
-    padding: 5px;
+    background-color: #f9d5e5;  /* Light pastel pink */
+    color: #333;
+    padding: 5px 10px;
     border-radius: 5px;
     margin: 5px 0;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1);
 }
