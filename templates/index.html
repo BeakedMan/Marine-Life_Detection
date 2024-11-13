@@ -3,46 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <title>Image Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
-    <h1>Upload an Image for Prediction</h1>
+    <div class="container">
+        <h1>Upload an Image for Prediction</h1>
 
-    <form id="uploadForm" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadImage();">
-        <label for="file">Choose an image:</label>
-        <input type="file" id="file" name="file" accept="image/*" onchange="previewImage(event)">
-        <br>
-        <label for="model">Select Model:</label>
-        <select id="model" name="model">
-            <option value="yolo">YOLOv11</option>
-            <option value="cnn">CNN</option>
-            <option value="faster_rcnn">Faster R-CNN</option>
-        </select>
-        <br><br>
-        <button type="submit">Submit</button>
-    </form>
+        <form id="uploadForm" enctype="multipart/form-data" onsubmit="event.preventDefault(); uploadImage();">
+            <label for="file">Choose an image:</label>
+            <input type="file" id="file" name="file" accept="image/*" onchange="previewImage(event)">
+            <br>
+            <label for="model">Select Model:</label>
+            <select id="model" name="model">
+                <option value="yolo">YOLOv11</option>
+                <option value="cnn">CNN</option>
+                <option value="faster_rcnn">Faster R-CNN</option>
+            </select>
+            <br><br>
+            <button type="submit">Submit</button>
+        </form>
 
-    <h2>Image Preview</h2>
-    <img id="preview" src="#" alt="Image preview" style="max-width: 300px; display: none;">
+        <h2>Image Preview</h2>
+        <img id="preview" src="#" alt="Image preview" class="image-preview">
 
-    <h2>Prediction Result</h2>
-    <div id="resultdiv" style="display: none;"></div>
-    <img id="result" src="#" alt="Annotated Image" style="max-width: 300px; display:none;">
+        <h2>Prediction Result</h2>
+        <div id="resultdiv"></div>
+        <img id="result" src="#" alt="Annotated Image" class="image-preview">
+        <ul id="predictedClasses" class="predicted-classes"></ul>
+    </div>
 
     <script>
-        // Function to preview the selected image
+        // Class name mappings for each model
+        const classNamesAll = {
+            0: "background",
+            1: "Fish",
+            2: "ball",
+            3: "circle cage",
+            4: "cube",
+            5: "cylinder",
+            6: "human body",
+            7: "metal bucket",
+            8: "plane",
+            9: "rov",
+            10: "square cage",
+            11: "tyre"
+        };
+    
+        const classNamesNoBackground = {
+            0: "Fish",
+            1: "ball",
+            2: "circle cage",
+            3: "cube",
+            4: "cylinder",
+            5: "human body",
+            6: "metal bucket",
+            7: "plane",
+            8: "rov",
+            9: "square cage",
+            10: "tyre"
+        };
+    
+        const classNamesNoBackgroundYolo = {
+            1: "Fish",
+            2: "ball",
+            3: "circle cage",
+            4: "cube",
+            5: "cylinder",
+            6: "human body",
+            7: "metal bucket",
+            8: "plane",
+            9: "rov",
+            10: "square cage",
+            11: "tyre"
+        };
+    
+        // Function to select the appropriate class name mapping based on model choice
+        function getClassName(label, modelChoice) {
+            if (modelChoice === 'yolo') {
+                return classNamesNoBackgroundYolo[label] || `Class ${label}`;
+            } else if (modelChoice === 'faster_rcnn') {
+                return classNamesAll[label] || `Class ${label}`;
+            } else if (modelChoice === 'cnn') {
+                return classNamesNoBackground[label] || `Class ${label}`;
+            }
+            return `Class ${label}`;
+        }
+        
         function previewImage(event) {
+        const file = event.target.files[0];
+        if (file) {
             const reader = new FileReader();
             reader.onload = function() {
                 const preview = document.getElementById('preview');
                 preview.src = reader.result;
                 preview.style.display = 'block';
             };
-            reader.readAsDataURL(event.target.files[0]);
+            reader.readAsDataURL(file);
+            }
         }
 
-        // Function to upload the image and display predictions
         function uploadImage() {
             const formData = new FormData(document.getElementById('uploadForm'));
+            const modelChoice = document.getElementById('model').value;  // Get the selected model
+    
             fetch('/predict', {
                 method: 'POST',
                 body: formData
@@ -50,25 +113,25 @@
             .then(response => response.json())
             .then(data => {
                 const resultDiv = document.getElementById('resultdiv');
-                const preview = document.getElementById('preview');
-
-                // Check if an image URL is provided (for YOLO and Faster R-CNN) or just a result (for CNN)
+                const resultImg = document.getElementById('result');
+                const predictedClasses = document.getElementById('predictedClasses');
+    
                 if (data.result && data.result.class !== undefined && data.result.confidence !== undefined) {
-                    // Display only class and confidence for CNN
-                    // preview.style.display = 'none';  // Hide preview for CNN
-                    document.getElementById('result').style.display = "none";
-                    resultDiv.innerHTML = `<p>Class: ${data.result.class}</p><p>Confidence: ${data.result.confidence.toFixed(2)}</p>`;
-                    resultDiv.style.display = "block";
-                }
-                else if (data.image_url) {
-                    // Display annotated image for YOLO and Faster R-CNN
-                    resultDiv.style.display = "none";
-                    result.src = `${data.image_url}?t=${new Date().getTime()}`;  // Add timestamp to prevent caching
-                    result.style.display = 'block';
-                    // resultDiv.innerHTML = `<pre>${JSON.stringify(data.result, null, 2)}</pre>`;
+                    resultDiv.innerHTML = `<p>Class: ${getClassName(data.result.class, modelChoice)}</p><p>Confidence: ${data.result.confidence.toFixed(2)}</p>`;
+                    resultImg.style.display = "none";
+                    predictedClasses.style.display = "none";
+                } else if (data.image_url) {
+                    resultImg.src = `${data.image_url}?t=${new Date().getTime()}`;
+                    resultImg.style.display = 'block';
+                    resultDiv.innerHTML = "";
+    
+                    // Display each predicted class with confidence
+                    predictedClasses.innerHTML = data.result.map(pred => 
+                        `<li>${getClassName(pred.label, modelChoice)}: ${pred.score.toFixed(2)}</li>`
+                    ).join('');
+                    predictedClasses.style.display = "block";
                 } else {
-                    console.error("Unexpected response format:", data);
-                    resultDiv.innerHTML = "<p style='color: red;'>Error: Unexpected response format.</p>";
+                    resultDiv.innerHTML = "<p style='color: red;'>Unexpected response format.</p>";
                 }
             })
             .catch(error => {
@@ -76,7 +139,6 @@
                 document.getElementById('result').innerHTML = "<p style='color: red;'>An error occurred while processing the image.</p>";
             });
         }
-    </script>
-    
+    </script>    
 </body>
 </html>

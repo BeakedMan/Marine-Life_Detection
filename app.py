@@ -24,7 +24,7 @@ class_names_all = {
     11: "tyre",
 }
 
-# For CNN and YOLO (no background class)
+# For CNN (no background class)
 class_names_no_background = {
     0: "Fish",
     1: "ball",
